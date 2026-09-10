@@ -1,31 +1,46 @@
 import os
 
-# =========================================================
-# RENDER / CPU CONFIGURATION
-# =========================================================
-# Render does not provide a CUDA GPU on the free service.
-# Disable CUDA before TensorFlow is imported.
+# ============================================================
+# RENDER CPU OPTIMIZATION
+# ============================================================
+# Render Free uses CPU only. Limit TensorFlow threads so it
+# doesn't consume too many CPU resources during prediction.
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "2"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "2"
+
+import time
 
 from flask import Flask, render_template, request
 import tensorflow as tf
 from PIL import Image
 import numpy as np
-import time
 
 
-# =========================================================
+# ============================================================
+# TENSORFLOW THREAD CONFIGURATION
+# ============================================================
+try:
+    tf.config.threading.set_intra_op_parallelism_threads(2)
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+except RuntimeError:
+    # Ignore if TensorFlow has already initialized its runtime.
+    pass
+
+
+# ============================================================
 # FLASK APP
-# =========================================================
-
+# ============================================================
 app = Flask(__name__)
 
 
-# =========================================================
-# LOAD TRAINED MODEL
-# =========================================================
-
+# ============================================================
+# MODEL
+# ============================================================
 MODEL_PATH = "model/agrovision_mobilenetv2.keras"
+
+print("Loading model...")
 
 model = tf.keras.models.load_model(
     MODEL_PATH,
@@ -35,73 +50,38 @@ model = tf.keras.models.load_model(
 print("Model loaded successfully!")
 
 
-# =========================================================
-# MODEL WARM-UP
-# =========================================================
-# Run one dummy prediction when the server starts.
-# This helps reduce the delay on the first real prediction.
-
-dummy_image = np.zeros(
-    (1, 224, 224, 3),
-    dtype=np.float32
-)
-
-model(
-    dummy_image,
-    training=False
-)
-
-print("Model warm-up completed!")
-
-
-# =========================================================
-# PLANTVILLAGE CLASS NAMES
-# IMPORTANT:
-# This order must match the training dataset class order.
-# =========================================================
-
+# ============================================================
+# CLASS NAMES
+# ============================================================
 class_names = [
     "Apple___Apple_scab",
     "Apple___Black_rot",
     "Apple___Cedar_apple_rust",
     "Apple___healthy",
-
     "Blueberry___healthy",
-
     "Cherry_(including_sour)___Powdery_mildew",
     "Cherry_(including_sour)___healthy",
-
     "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
     "Corn_(maize)___Common_rust_",
     "Corn_(maize)___Northern_Leaf_Blight",
     "Corn_(maize)___healthy",
-
     "Grape___Black_rot",
     "Grape___Esca_(Black_Measles)",
     "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)",
     "Grape___healthy",
-
     "Orange___Haunglongbing_(Citrus_greening)",
-
     "Peach___Bacterial_spot",
     "Peach___healthy",
-
     "Pepper,_bell___Bacterial_spot",
     "Pepper,_bell___healthy",
-
     "Potato___Early_blight",
     "Potato___Late_blight",
     "Potato___healthy",
-
     "Raspberry___healthy",
-
     "Soybean___healthy",
-
     "Squash___Powdery_mildew",
-
     "Strawberry___Leaf_scorch",
     "Strawberry___healthy",
-
     "Tomato___Bacterial_spot",
     "Tomato___Early_blight",
     "Tomato___Late_blight",
@@ -114,13 +94,12 @@ class_names = [
     "Tomato___healthy"
 ]
 
-
-# =========================================================
-# CHECK NUMBER OF CLASSES
-# =========================================================
-
 print("Number of classes:", len(class_names))
 
+
+# ============================================================
+# CHECK MODEL OUTPUT
+# ============================================================
 if len(class_names) != model.output_shape[-1]:
     raise ValueError(
         f"Class mismatch! "
@@ -129,12 +108,10 @@ if len(class_names) != model.output_shape[-1]:
     )
 
 
-# =========================================================
-# DISEASE GUIDANCE
-# =========================================================
-
+# ============================================================
+# SOLUTIONS
+# ============================================================
 solutions = {
-
     "Apple___Apple_scab":
         "Remove affected leaves and fallen plant material. Improve air circulation and avoid wetting the leaves.",
 
@@ -215,27 +192,42 @@ solutions = {
 }
 
 
-# =========================================================
-# HOME PAGE
-# =========================================================
+# ============================================================
+# MODEL WARM-UP
+# ============================================================
+print("Starting model warm-up...")
 
+dummy_image = np.zeros(
+    (1, 224, 224, 3),
+    dtype=np.float32
+)
+
+try:
+    model(dummy_image, training=False)
+    print("Model warm-up completed!")
+except Exception as e:
+    print("Warm-up error:", e)
+
+
+# ============================================================
+# HOME PAGE
+# ============================================================
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
-# =========================================================
+# ============================================================
 # PREDICTION
-# =========================================================
-
+# ============================================================
 @app.route("/predict", methods=["POST"])
 def predict():
 
-    # -----------------------------------------------------
-    # CHECK IMAGE
-    # -----------------------------------------------------
+    print("---------------------------------------")
+    print("Starting prediction...")
 
     if "leaf_image" not in request.files:
+        print("ERROR: No image uploaded.")
         return render_template(
             "index.html",
             error="No image uploaded."
@@ -244,6 +236,7 @@ def predict():
     file = request.files["leaf_image"]
 
     if file.filename == "":
+        print("ERROR: Empty filename.")
         return render_template(
             "index.html",
             error="Please select an image."
@@ -251,248 +244,44 @@ def predict():
 
     try:
 
-        # -------------------------------------------------
-        # OPEN IMAGE
-        # -------------------------------------------------
+        # ----------------------------------------------------
+        # READ IMAGE
+        # ----------------------------------------------------
+        print("Reading image...")
 
         image = Image.open(file).convert("RGB")
 
-        # Resize to model input size
+        print("Original image size:", image.size)
+
+        # ----------------------------------------------------
+        # RESIZE
+        # ----------------------------------------------------
         image = image.resize((224, 224))
 
-        # Convert to NumPy
+        # ----------------------------------------------------
+        # CONVERT TO NUMPY
+        # ----------------------------------------------------
         image_array = np.array(
             image,
             dtype=np.float32
         )
 
-        # Add batch dimension
         image_array = np.expand_dims(
             image_array,
             axis=0
         )
 
-        # -------------------------------------------------
-        # AI PREDICTION
-        # -------------------------------------------------
-        # The trained model already contains its own
-        # Rescaling(1.0 / 127.5, offset=-1) layer.
-        #
-        # Therefore we DO NOT call:
-        #
-        # preprocess_input()
-        #
-        # here.
+        print("Image prepared for model.")
 
-        print("Starting prediction...")
+        # ----------------------------------------------------
+        # MODEL PREDICTION
+        # ----------------------------------------------------
+        print("Running TensorFlow prediction...")
 
         start_time = time.time()
 
-        predictions = model(
-            image_array,
-            training=False
-        ).numpy()
-
-        analysis_time = time.time() - start_time
-
-        print(
-            "Prediction completed in:",
-            round(analysis_time, 2),
-            "seconds"
-        )
-
-        # -------------------------------------------------
-        # GET PREDICTION INDEX
-        # -------------------------------------------------
-
-        predicted_index = int(
-            np.argmax(predictions[0])
-        )
-
-        # -------------------------------------------------
-        # GET PREDICTED CLASS
-        # -------------------------------------------------
-
-        predicted_class = class_names[
-            predicted_index
-        ]
-
-        # -------------------------------------------------
-        # GET CONFIDENCE
-        # -------------------------------------------------
-
-        confidence = float(
-            predictions[0][predicted_index]
-        ) * 100
-
-        # -------------------------------------------------
-        # SPLIT CROP AND CONDITION
-        # -------------------------------------------------
-
-        parts = predicted_class.split(
-            "___",
-            1
-        )
-
-        if len(parts) != 2:
-            raise ValueError(
-                "Invalid class name format: "
-                + predicted_class
-            )
-
-        crop = parts[0]
-        condition = parts[1]
-
-        # -------------------------------------------------
-        # FRIENDLY CROP NAME
-        # -------------------------------------------------
-
-        crop = crop.replace(
-            "_",
-            " "
-        )
-
-        crop = crop.replace(
-            "(maize)",
-            ""
-        )
-
-        crop = crop.replace(
-            "(including sour)",
-            ""
-        )
-
-        crop = crop.replace(
-            ", bell",
-            ""
-        )
-
-        crop = " ".join(
-            crop.split()
-        )
-
-        # -------------------------------------------------
-        # HEALTHY PLANT
-        # -------------------------------------------------
-
-        if condition.lower() == "healthy":
-
-            status = "Healthy"
-
-            disease = "No disease detected"
-
-            solution = (
-                "Your plant appears healthy. "
-                "Continue regular watering, proper nutrition, "
-                "good sunlight, and regular monitoring."
-            )
-
-        # -------------------------------------------------
-        # DISEASED PLANT
-        # -------------------------------------------------
-
-        else:
-
-            status = "Disease Detected"
-
-            disease = condition.replace(
-                "_",
-                " "
-            )
-
-            disease = " ".join(
-                disease.split()
-            )
-
-            solution = solutions.get(
-                predicted_class,
-                "Maintain good plant hygiene, remove severely "
-                "affected plant material, improve air circulation, "
-                "and consult local agricultural guidance if symptoms continue."
-            )
-
-        # -------------------------------------------------
-        # PRINT RESULT
-        # -------------------------------------------------
-
-        print("---------------------------------------")
-        print(
-            "Predicted class :",
-            predicted_class
-        )
-        print(
-            "Crop            :",
-            crop
-        )
-        print(
-            "Condition       :",
-            disease
-        )
-        print(
-            "Confidence      :",
-            round(confidence, 2),
-            "%"
-        )
-        print(
-            "Analysis time   :",
-            round(analysis_time, 2),
-            "seconds"
-        )
-        print("---------------------------------------")
-
-        # -------------------------------------------------
-        # SEND RESULT TO HTML
-        # -------------------------------------------------
-
-        return render_template(
-            "index.html",
-
-            prediction=predicted_class,
-
-            crop=crop,
-
-            status=status,
-
-            disease=disease,
-
-            confidence=round(
-                confidence,
-                2
-            ),
-
-            solution=solution
-        )
-
-    # =====================================================
-    # ERROR HANDLING
-    # =====================================================
-
-    except Exception as e:
-
-        print(
-            "ERROR:",
-            e
-        )
-
-        return render_template(
-            "index.html",
-            error=f"Error processing image: {e}"
-        )
-
-
-# =========================================================
-# RUN FLASK
-# =========================================================
-
-if __name__ == "__main__":
-
-    app.run(
-        host="0.0.0.0",
-        port=int(
-            os.environ.get(
-                "PORT",
-                5000
-            )
-        ),
-        debug=False
-    )
+        # IMPORTANT:
+        # The model already contains:
+        # Rescaling(1.0 / 127.5, offset=-1)
+        #
+        # Therefore we DO NOT use preprocess_input here.
