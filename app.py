@@ -1,7 +1,17 @@
+import os
+
+# =========================================================
+# RENDER / CPU CONFIGURATION
+# =========================================================
+# Render does not provide a CUDA GPU on the free service.
+# Disable CUDA before TensorFlow is imported.
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 from flask import Flask, render_template, request
 import tensorflow as tf
 from PIL import Image
 import numpy as np
+import time
 
 
 # =========================================================
@@ -26,10 +36,28 @@ print("Model loaded successfully!")
 
 
 # =========================================================
+# MODEL WARM-UP
+# =========================================================
+# Run one dummy prediction when the server starts.
+# This helps reduce the delay on the first real prediction.
+
+dummy_image = np.zeros(
+    (1, 224, 224, 3),
+    dtype=np.float32
+)
+
+model(
+    dummy_image,
+    training=False
+)
+
+print("Model warm-up completed!")
+
+
+# =========================================================
 # PLANTVILLAGE CLASS NAMES
 # IMPORTANT:
 # This order must match the training dataset class order.
-# image_dataset_from_directory() sorts folders alphabetically.
 # =========================================================
 
 class_names = [
@@ -233,7 +261,10 @@ def predict():
         image = image.resize((224, 224))
 
         # Convert to NumPy
-        image_array = np.array(image, dtype=np.float32)
+        image_array = np.array(
+            image,
+            dtype=np.float32
+        )
 
         # Add batch dimension
         image_array = np.expand_dims(
@@ -242,49 +273,66 @@ def predict():
         )
 
         # -------------------------------------------------
-        # IMPORTANT
-        # -------------------------------------------------
-        # DO NOT use:
-        #
-        # tf.keras.applications.mobilenet_v2.preprocess_input()
-        #
-        # here.
-        #
-        # Your trained model already contains:
-        #
-        # Rescaling(1.0 / 127.5, offset=-1)
-        #
-        # Therefore the model performs preprocessing itself.
-        # -------------------------------------------------
-
-        # -------------------------------------------------
         # AI PREDICTION
         # -------------------------------------------------
+        # The trained model already contains its own
+        # Rescaling(1.0 / 127.5, offset=-1) layer.
+        #
+        # Therefore we DO NOT call:
+        #
+        # preprocess_input()
+        #
+        # here.
 
-        predictions = model.predict(
+        print("Starting prediction...")
+
+        start_time = time.time()
+
+        predictions = model(
             image_array,
-            verbose=0
+            training=False
+        ).numpy()
+
+        analysis_time = time.time() - start_time
+
+        print(
+            "Prediction completed in:",
+            round(analysis_time, 2),
+            "seconds"
         )
 
-        # Get prediction index
+        # -------------------------------------------------
+        # GET PREDICTION INDEX
+        # -------------------------------------------------
+
         predicted_index = int(
             np.argmax(predictions[0])
         )
 
-        # Get predicted class
-        predicted_class = class_names[predicted_index]
+        # -------------------------------------------------
+        # GET PREDICTED CLASS
+        # -------------------------------------------------
 
-        # Get confidence
+        predicted_class = class_names[
+            predicted_index
+        ]
+
+        # -------------------------------------------------
+        # GET CONFIDENCE
+        # -------------------------------------------------
+
         confidence = float(
             predictions[0][predicted_index]
         ) * 100
-
 
         # -------------------------------------------------
         # SPLIT CROP AND CONDITION
         # -------------------------------------------------
 
-        parts = predicted_class.split("___", 1)
+        parts = predicted_class.split(
+            "___",
+            1
+        )
 
         if len(parts) != 2:
             raise ValueError(
@@ -295,18 +343,33 @@ def predict():
         crop = parts[0]
         condition = parts[1]
 
-
         # -------------------------------------------------
         # FRIENDLY CROP NAME
         # -------------------------------------------------
 
-        crop = crop.replace("_", " ")
-        crop = crop.replace("(maize)", "")
-        crop = crop.replace("(including sour)", "")
-        crop = crop.replace(", bell", "")
+        crop = crop.replace(
+            "_",
+            " "
+        )
 
-        crop = " ".join(crop.split())
+        crop = crop.replace(
+            "(maize)",
+            ""
+        )
 
+        crop = crop.replace(
+            "(including sour)",
+            ""
+        )
+
+        crop = crop.replace(
+            ", bell",
+            ""
+        )
+
+        crop = " ".join(
+            crop.split()
+        )
 
         # -------------------------------------------------
         # HEALTHY PLANT
@@ -324,7 +387,6 @@ def predict():
                 "good sunlight, and regular monitoring."
             )
 
-
         # -------------------------------------------------
         # DISEASED PLANT
         # -------------------------------------------------
@@ -333,7 +395,10 @@ def predict():
 
             status = "Disease Detected"
 
-            disease = condition.replace("_", " ")
+            disease = condition.replace(
+                "_",
+                " "
+            )
 
             disease = " ".join(
                 disease.split()
@@ -346,18 +411,34 @@ def predict():
                 "and consult local agricultural guidance if symptoms continue."
             )
 
-
         # -------------------------------------------------
-        # PRINT RESULT IN TERMINAL
+        # PRINT RESULT
         # -------------------------------------------------
 
         print("---------------------------------------")
-        print("Predicted class :", predicted_class)
-        print("Crop            :", crop)
-        print("Condition       :", disease)
-        print("Confidence      :", round(confidence, 2), "%")
+        print(
+            "Predicted class :",
+            predicted_class
+        )
+        print(
+            "Crop            :",
+            crop
+        )
+        print(
+            "Condition       :",
+            disease
+        )
+        print(
+            "Confidence      :",
+            round(confidence, 2),
+            "%"
+        )
+        print(
+            "Analysis time   :",
+            round(analysis_time, 2),
+            "seconds"
+        )
         print("---------------------------------------")
-
 
         # -------------------------------------------------
         # SEND RESULT TO HTML
@@ -374,11 +455,13 @@ def predict():
 
             disease=disease,
 
-            confidence=round(confidence, 2),
+            confidence=round(
+                confidence,
+                2
+            ),
 
             solution=solution
         )
-
 
     # =====================================================
     # ERROR HANDLING
@@ -386,7 +469,10 @@ def predict():
 
     except Exception as e:
 
-        print("ERROR:", e)
+        print(
+            "ERROR:",
+            e
+        )
 
         return render_template(
             "index.html",
@@ -401,5 +487,12 @@ def predict():
 if __name__ == "__main__":
 
     app.run(
+        host="0.0.0.0",
+        port=int(
+            os.environ.get(
+                "PORT",
+                5000
+            )
+        ),
         debug=False
     )
