@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>AgroVision AI | Smart Plant Health</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+<!-- =====================================================
+     NAVBAR
+===================================================== -->
+
+<header class="navbar">
+
+    <a href="#home" class="logo">
+        <span class="logo-icon">🌱</span>
+
+        <div>
+            <strong>AgroVision</strong>
+            <small>AI</small>
+        </div>
+    </a>
+
+    <nav>
+        <a href="#home">Home</a>
+        <a href="#analyze">Analyze</a>
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#about">About</a>
+    </nav>
+
+    <a href="#analyze" class="nav-button">
+        Analyze Leaf
+        <span>→</span>
+    </a>
+
+</header>
+
+
+<!-- =====================================================
+     HERO SECTION
+===================================================== -->
+
+<section class="hero" id="home">
+
+    <div class="hero-background-shape shape-one"></div>
+    <div class="hero-background-shape shape-two"></div>
+
+    <div class="hero-content">
+
+        <div class="hero-badge">
+            <span class="pulse-dot"></span>
+            AI-POWERED CROP HEALTH
+        </div>
+
+        <h1>
+    Smart Plant Disease
+    <span>Detection</span>
+</h1>
+
+<p>
+    Detect plant diseases from leaf images using Artificial Intelligence
+    and Deep Learning.
+</p>
+
+        <div class="hero-buttons">
+
+            <a href="#analyze" class="primary-button">
+                <span>🔍</span>
+                Analyze Your Leaf
+            </a>
+
+            <a href="#how-it-works" class="secondary-button">
+                How It Works
+                <span>↓</span>
+            </a>
+
+        </div>
+
+
+        <!-- HERO STATS -->
+
+        <div class="hero-stats">
+
+            <div class="hero-stat">
+                <strong>38+</strong>
+                <span>Plant Classes</span>
+            </div>
+
+            <div class="stat-divider"></div>
+
+            <div class="hero-stat">
+                <strong>54K+</strong>
+                <span>Training Images</span>
+            </div>
+
+            <div class="stat-divider"></div>
+
+            <div class="hero-stat">
+                <strong>AI</strong>
+                <span>Deep Learning</span>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- HERO VISUAL -->
+
+    <div class="hero-visual">
+
+        <div class="visual-glow"></div>
+
+        <div class="floating-card card-top">
+            <span>🧠</span>
+
+            <div>
+                <strong>AI Analysis</strong>
+                <small>Ready to analyze</small>
+            </div>
+        </div>
+
+        <div class="leaf-display">
+
+            <div class="leaf-ring ring-one"></div>
+            <div class="leaf-ring ring-two"></div>
+
+            <div class="leaf-main">
+                🌿
+            </div>
+
+            <div class="scan-effect"></div>
+
+            <div class="ai-corner corner-tl"></div>
+            <div class="ai-corner corner-tr"></div>
+            <div class="ai-corner corner-bl"></div>
+            <div class="ai-corner corner-br"></div>
+
+        </div>
+
+        <div class="floating-card card-bottom">
+
+            <div class="mini-check">
+                ✓
+            </div>
+
+            <div>
+                <strong>MobileNetV2</strong>
+                <small>Deep Learning Model</small>
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     ANALYZE SECTION
+===================================================== -->
+
+<section class="analyze-section" id="analyze">
+
+    <div class="section-heading">
+
+        <div class="section-badge">
+            📷 START ANALYSIS
+        </div>
+
+        <h2>
+            Check Your Plant's
+            <span>Health</span>
+        </h2>
+
+        <p>
+            Upload a clear image of a plant leaf
+            and get an AI-powered prediction.
+        </p>
+
+    </div>
+
+
+    <!-- UPLOAD AREA -->
+
+    <div class="analysis-container">
+
+        <div class="upload-card">
+
+            <div class="upload-icon-wrapper">
+                <div class="upload-icon">
+                    📸
+                </div>
+            </div>
+
+            <h3>
+                Upload Leaf Image
+            </h3>
+
+            <p class="upload-description">
+                Choose a clear JPG, JPEG or PNG image
+            </p>
+
+
+            <form action="/predict"
+                  method="POST"
+                  enctype="multipart/form-data"
+                  id="uploadForm">
+
+
+                <!-- IMAGE PREVIEW -->
+
+                <div class="image-preview"
+                     id="imagePreview">
+
+                    <div class="preview-placeholder">
+                        <span>🌿</span>
+                        <p>Your leaf preview will appear here</p>
+                    </div>
+
+                    <img id="previewImage"
+                         src=""
+                         alt="Leaf preview">
+
+                </div>
+
+
+                <label class="file-label">
+
+                    <span>📁</span>
+                    Choose Leaf Image
+
+                    <input
+                        type="file"
+                        name="leaf_image"
+                        accept="image/png,image/jpeg,image/jpg"
+                        id="leafInput"
+                        required
+                    >
+
+                </label>
+
+
+                <p class="file-name"
+                   id="fileName">
+                    No image selected
+                </p>
+
+
+                <button type="submit"
+                        class="analyze-button"
+                        id="analyzeButton">
+
+                    <span>🔍</span>
+                    ANALYZE WITH AI
+
+                </button>
+
+            </form>
+
+
+            <div class="upload-note">
+                🔒 Your image is used only for analysis
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =================================================
+         ERROR RESULT
+    ================================================= -->
+
+    {% if error %}
+
+    <div class="result-card error-result"
+         id="prediction-result">
+
+        <div class="result-header">
+
+            <div class="result-icon error-icon">
+                ⚠️
+            </div>
+
+            <div>
+                <span class="result-label">
+                    ANALYSIS ERROR
+                </span>
+
+                <h3>
+                    Something went wrong
+                </h3>
+            </div>
+
+        </div>
+
+        <div class="guidance error-guidance">
+
+            <strong>
+                Please try again
+            </strong>
+
+            <p>
+                {{ error }}
+            </p>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- =================================================
+         AI RESULT
+    ================================================= -->
+
+    {% if prediction %}
+
+    <div class="result-card"
+         id="prediction-result">
+
+
+        <!-- RESULT HEADER -->
+
+        <div class="result-header">
+
+            <div class="result-icon
+                {% if status == 'Healthy' %}
+                    healthy-icon
+                {% else %}
+                    disease-icon
+                {% endif %}">
+
+                {% if status == "Healthy" %}
+                    🌿
+                {% else %}
+                    🩺
+                {% endif %}
+
+            </div>
+
+
+            <div class="result-title">
+
+                <span class="result-label">
+                    AI ANALYSIS COMPLETE
+                </span>
+
+                <h3>
+                    {{ status }}
+                </h3>
+
+            </div>
+
+
+            <div class="status-badge
+                {% if status == 'Healthy' %}
+                    healthy-badge
+                {% else %}
+                    disease-badge
+                {% endif %}">
+
+                {% if status == "Healthy" %}
+                    ✓ Healthy
+                {% else %}
+                    ! Attention
+                {% endif %}
+
+            </div>
+
+        </div>
+
+
+        <!-- RESULT GRID -->
+
+        <div class="result-grid">
+
+
+            <!-- PLANT -->
+
+            <div class="result-box">
+
+                <div class="result-box-icon">
+                    🌱
+                </div>
+
+                <div>
+
+                    <span>
+                        Plant
+                    </span>
+
+                    <strong>
+                        {{ crop }}
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            <!-- CONDITION -->
+
+            <div class="result-box">
+
+                <div class="result-box-icon">
+                    🩺
+                </div>
+
+                <div>
+
+                    <span>
+                        Condition
+                    </span>
+
+                    <strong>
+                        {{ disease }}
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            <!-- MODEL -->
+
+            <div class="result-box">
+
+                <div class="result-box-icon">
+                    🤖
+                </div>
+
+                <div>
+
+                    <span>
+                        AI Model
+                    </span>
+
+                    <strong>
+                        MobileNetV2
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            <!-- CONFIDENCE -->
+
+            <div class="result-box confidence-box">
+
+                <div class="result-box-icon">
+                    📊
+                </div>
+
+                <div class="confidence-content">
+
+                    <div class="confidence-top">
+
+                        <span>
+                            Confidence
+                        </span>
+
+                        <strong>
+                            {{ confidence }}%
+                        </strong>
+
+                    </div>
+
+                    <div class="confidence-bar">
+
+                        <div class="confidence-fill"
+                             style="width: {{ confidence }}%;">
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- GUIDANCE -->
+
+        <div class="guidance">
+
+            <div class="guidance-title">
+
+                <span>💡</span>
+
+                <strong>
+                    Crop Guidance
+                </strong>
+
+            </div>
+
+            <p>
+                {{ solution }}
+            </p>
+
+        </div>
+
+
+        <!-- TRY AGAIN -->
+
+        <div class="result-actions">
+
+            <a href="#analyze"
+               class="try-again-button"
+               onclick="resetUpload()">
+
+                🔄 Try Another Image
+
+            </a>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</section>
+
+
+<!-- =====================================================
+     FEATURES
+===================================================== -->
+
+<section class="features-section" id="features">
+
+    <div class="section-heading">
+
+        <div class="section-badge">
+            ✨ WHY AGROVISION AI
+        </div>
+
+        <h2>
+            Smart Features for
+            <span>Smarter Farming</span>
+        </h2>
+
+        <p>
+            Simple AI technology designed to make
+            plant health analysis easier.
+        </p>
+
+    </div>
+
+
+    <div class="feature-grid">
+
+
+        <div class="feature-card">
+
+            <div class="feature-icon green-icon">
+                🌿
+            </div>
+
+            <span class="feature-number">
+                01
+            </span>
+
+            <h3>
+                Disease Detection
+            </h3>
+
+            <p>
+                Identify plant disease classes
+                from leaf images using deep learning.
+            </p>
+
+        </div>
+
+
+        <div class="feature-card">
+
+            <div class="feature-icon blue-icon">
+                📊
+            </div>
+
+            <span class="feature-number">
+                02
+            </span>
+
+            <h3>
+                Confidence Score
+            </h3>
+
+            <p>
+                See how confident the AI model is
+                about each prediction.
+            </p>
+
+        </div>
+
+
+        <div class="feature-card">
+
+            <div class="feature-icon orange-icon">
+                ⚡
+            </div>
+
+            <span class="feature-number">
+                03
+            </span>
+
+            <h3>
+                Fast Analysis
+            </h3>
+
+            <p>
+                Get an AI-based prediction within
+                seconds after uploading an image.
+            </p>
+
+        </div>
+
+
+        <div class="feature-card">
+
+            <div class="feature-icon purple-icon">
+                💡
+            </div>
+
+            <span class="feature-number">
+                04
+            </span>
+
+            <h3>
+                Crop Guidance
+            </h3>
+
+            <p>
+                Receive simple guidance based
+                on the detected condition.
+            </p>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     HOW IT WORKS
+===================================================== -->
+
+<section class="how-section" id="how-it-works">
+
+    <div class="section-heading">
+
+        <div class="section-badge">
+            ⚙️ SIMPLE PROCESS
+        </div>
+
+        <h2>
+            How
+            <span>AgroVision AI</span>
+            Works
+        </h2>
+
+    </div>
+
+
+    <div class="steps-container">
+
+
+        <div class="step-card">
+
+            <div class="step-number">
+                01
+            </div>
+
+            <div class="step-icon">
+                📷
+            </div>
+
+            <h3>
+                Upload
+            </h3>
+
+            <p>
+                Choose a clear image
+                of a plant leaf.
+            </p>
+
+        </div>
+
+
+        <div class="step-connector">
+            →
+        </div>
+
+
+        <div class="step-card">
+
+            <div class="step-number">
+                02
+            </div>
+
+            <div class="step-icon">
+                🤖
+            </div>
+
+            <h3>
+                AI Analysis
+            </h3>
+
+            <p>
+                MobileNetV2 analyzes
+                the image using deep learning.
+            </p>
+
+        </div>
+
+
+        <div class="step-connector">
+            →
+        </div>
+
+
+        <div class="step-card">
+
+            <div class="step-number">
+                03
+            </div>
+
+            <div class="step-icon">
+                📊
+            </div>
+
+            <h3>
+                Get Result
+            </h3>
+
+            <p>
+                View the predicted condition
+                and confidence score.
+            </p>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     ABOUT
+===================================================== -->
+
+<section class="about-section" id="about">
+
+
+    <div class="about-visual">
+
+        <div class="about-glow"></div>
+
+        <div class="about-main-card">
+
+            <div class="about-leaf">
+                🌱
+            </div>
+
+            <div class="about-scan"></div>
+
+        </div>
+
+
+        <div class="about-floating">
+
+            <span>🧠</span>
+
+            <div>
+                <strong>MobileNetV2</strong>
+                <small>Deep Learning</small>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="about-content">
+
+        <div class="section-badge">
+            🤖 ABOUT THE PROJECT
+        </div>
+
+        <h2>
+            AI for a
+            <span>Healthier Future</span>
+        </h2>
+
+        <p>
+            AgroVision AI is an AI-powered plant disease
+            detection system designed to help identify
+            plant conditions from leaf images.
+        </p>
+
+        <p>
+            The system uses the PlantVillage dataset
+            and a MobileNetV2-based deep learning model
+            to classify plant leaf conditions.
+        </p>
+
+
+        <div class="technology-list">
+
+            <span>🐍 Python</span>
+            <span>🧠 TensorFlow</span>
+            <span>🤖 MobileNetV2</span>
+            <span>🌐 Flask</span>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     CTA
+===================================================== -->
+
+<section class="cta-section">
+
+    <div class="cta-content">
+
+        <div class="cta-icon">
+            🌱
+        </div>
+
+        <div>
+
+            <span>
+                READY TO CHECK A LEAF?
+            </span>
+
+            <h2>
+                Start Your Plant Health Analysis
+            </h2>
+
+            <p>
+                Upload a leaf image and let
+                AgroVision AI analyze it.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <a href="#analyze"
+       class="primary-button">
+
+        🔍 Analyze Now
+
+    </a>
+
+</section>
+
+
+<!-- =====================================================
+     FOOTER
+===================================================== -->
+
+<footer>
+
+    <div class="footer-top">
+
+        <a href="#home" class="footer-logo">
+
+            <span>🌱</span>
+
+            <strong>
+                AgroVision AI
+            </strong>
+
+        </a>
+
+        <p>
+            Smart Crop Health Detection
+            using Artificial Intelligence
+        </p>
+
+    </div>
+
+
+    <div class="footer-bottom">
+
+        <span>
+            © 2026 AgroVision AI
+        </span>
+
+        <span>
+            Powered by MobileNetV2 • TensorFlow • Flask
+        </span>
+
+    </div>
+
+</footer>
+
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script>
+
+const fileInput =
+    document.getElementById("leafInput");
+
+const fileName =
+    document.getElementById("fileName");
+
+const previewImage =
+    document.getElementById("previewImage");
+
+const previewBox =
+    document.getElementById("imagePreview");
+
+const uploadForm =
+    document.getElementById("uploadForm");
+
+const analyzeButton =
+    document.getElementById("analyzeButton");
+
+
+// =====================================================
+// IMAGE PREVIEW
+// =====================================================
+
+fileInput.addEventListener("change", function () {
+
+    if (this.files && this.files.length > 0) {
+
+        const file = this.files[0];
+
+        fileName.textContent =
+            "Selected: " + file.name;
+
+        const reader =
+            new FileReader();
+
+        reader.onload = function (event) {
+
+            previewImage.src =
+                event.target.result;
+
+            previewImage.style.display =
+                "block";
+
+            previewBox.classList.add(
+                "has-image"
+            );
+
+        };
+
+        reader.readAsDataURL(file);
+
+    }
+
+});
+
+
+// =====================================================
+// FORM SUBMIT
+// =====================================================
+
+uploadForm.addEventListener(
+    "submit",
+    function () {
+
+        analyzeButton.innerHTML =
+            '<span class="loading-spinner"></span> ANALYZING...';
+
+        analyzeButton.disabled = true;
+
+    }
+);
+
+
+// =====================================================
+// RESET UPLOAD
+// =====================================================
+
+function resetUpload() {
+
+    fileInput.value = "";
+
+    fileName.textContent =
+        "No image selected";
+
+    previewImage.src = "";
+
+    previewImage.style.display =
+        "none";
+
+    previewBox.classList.remove(
+        "has-image"
+    );
+
+}
+
+
+// =====================================================
+// SCROLL TO RESULT
+// =====================================================
+
+window.addEventListener(
+    "load",
+    function () {
+
+        const result =
+            document.getElementById(
+                "prediction-result"
+            );
+
+        if (result) {
+
+            setTimeout(
+                function () {
+
+                    result.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+
+                },
+                400
+            );
+
+        }
+
+    }
+);
+
+</script>
+
+</body>
+</html>
