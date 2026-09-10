@@ -1,14 +1,17 @@
 import os
 
 # ============================================================
-# RENDER CPU OPTIMIZATION
+# RENDER / CPU CONFIGURATION
 # ============================================================
-# Render Free uses CPU only. Limit TensorFlow threads so it
-# doesn't consume too many CPU resources during prediction.
+
+# Render free service does not provide CUDA GPU.
+# Force TensorFlow to use CPU only.
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ["TF_NUM_INTRAOP_THREADS"] = "2"
-os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+
+# Limit CPU threads to reduce memory usage on Render.
 os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "2"
+os.environ["TF_NUM_INTEROP_THREADS"] = "2"
 
 import time
 
@@ -19,25 +22,27 @@ import numpy as np
 
 
 # ============================================================
-# TENSORFLOW THREAD CONFIGURATION
+# TENSORFLOW CPU THREAD CONFIGURATION
 # ============================================================
+
 try:
     tf.config.threading.set_intra_op_parallelism_threads(2)
-    tf.config.threading.set_inter_op_parallelism_threads(1)
-except RuntimeError:
-    # Ignore if TensorFlow has already initialized its runtime.
-    pass
+    tf.config.threading.set_inter_op_parallelism_threads(2)
+except Exception as e:
+    print("TensorFlow thread configuration warning:", e)
 
 
 # ============================================================
 # FLASK APP
 # ============================================================
+
 app = Flask(__name__)
 
 
 # ============================================================
 # MODEL
 # ============================================================
+
 MODEL_PATH = "model/agrovision_mobilenetv2.keras"
 
 print("Loading model...")
@@ -53,6 +58,7 @@ print("Model loaded successfully!")
 # ============================================================
 # CLASS NAMES
 # ============================================================
+
 class_names = [
     "Apple___Apple_scab",
     "Apple___Black_rot",
@@ -100,6 +106,7 @@ print("Number of classes:", len(class_names))
 # ============================================================
 # CHECK MODEL OUTPUT
 # ============================================================
+
 if len(class_names) != model.output_shape[-1]:
     raise ValueError(
         f"Class mismatch! "
@@ -109,122 +116,156 @@ if len(class_names) != model.output_shape[-1]:
 
 
 # ============================================================
-# SOLUTIONS
-# ============================================================
-solutions = {
-    "Apple___Apple_scab":
-        "Remove affected leaves and fallen plant material. Improve air circulation and avoid wetting the leaves.",
-
-    "Apple___Black_rot":
-        "Remove infected leaves and fruit. Keep the area clean and improve air circulation around the plant.",
-
-    "Apple___Cedar_apple_rust":
-        "Remove affected leaves and keep the area around the plant clean. Follow local agricultural guidance for treatment.",
-
-    "Cherry_(including_sour)___Powdery_mildew":
-        "Remove severely affected leaves and improve sunlight and air circulation. Avoid excessive moisture around the foliage.",
-
-    "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot":
-        "Remove heavily affected plant material and improve field air circulation. Follow local crop-management recommendations.",
-
-    "Corn_(maize)___Common_rust_":
-        "Monitor the crop regularly and remove severely affected leaves. Follow local agricultural guidance if the disease spreads.",
-
-    "Corn_(maize)___Northern_Leaf_Blight":
-        "Remove severely affected leaves and improve field hygiene. Follow local agricultural recommendations for disease management.",
-
-    "Grape___Black_rot":
-        "Remove infected leaves and fruit and keep the area clean. Improve air circulation around the vines.",
-
-    "Grape___Esca_(Black_Measles)":
-        "Remove severely affected plant material and maintain good vineyard hygiene. Seek local agricultural guidance for management.",
-
-    "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)":
-        "Remove affected leaves and improve air circulation. Avoid prolonged leaf wetness.",
-
-    "Orange___Haunglongbing_(Citrus_greening)":
-        "This condition requires professional agricultural assessment. Follow local agricultural guidance for management.",
-
-    "Peach___Bacterial_spot":
-        "Remove severely affected leaves and maintain good plant hygiene. Avoid overhead watering and improve air circulation.",
-
-    "Pepper,_bell___Bacterial_spot":
-        "Remove affected leaves and maintain good plant hygiene. Avoid overhead watering and keep foliage as dry as practical.",
-
-    "Potato___Early_blight":
-        "Remove severely affected leaves and maintain field hygiene. Avoid prolonged leaf wetness and follow local agricultural guidance.",
-
-    "Potato___Late_blight":
-        "Remove affected plant material and avoid overhead irrigation. Because this disease can spread quickly, follow local agricultural guidance.",
-
-    "Squash___Powdery_mildew":
-        "Remove severely affected leaves and improve sunlight and air circulation. Avoid excessive moisture on foliage.",
-
-    "Strawberry___Leaf_scorch":
-        "Remove severely affected leaves and maintain good plant hygiene. Improve air circulation around the plants.",
-
-    "Tomato___Bacterial_spot":
-        "Remove affected leaves and maintain good plant hygiene. Avoid overhead watering and improve air circulation.",
-
-    "Tomato___Early_blight":
-        "Remove affected leaves and keep the area clean. Avoid prolonged leaf wetness and maintain good plant spacing.",
-
-    "Tomato___Late_blight":
-        "Remove affected plant material and avoid overhead watering. Monitor the crop closely and follow local agricultural guidance.",
-
-    "Tomato___Leaf_Mold":
-        "Remove affected leaves and improve ventilation and air circulation. Avoid excessive humidity around the foliage.",
-
-    "Tomato___Septoria_leaf_spot":
-        "Remove affected leaves and keep the soil and plant area clean. Avoid overhead watering.",
-
-    "Tomato___Spider_mites Two-spotted_spider_mite":
-        "Inspect the undersides of leaves and remove heavily affected leaves. Maintain plant health and seek local guidance if infestation increases.",
-
-    "Tomato___Target_Spot":
-        "Remove affected leaves and improve air circulation. Avoid prolonged leaf wetness and maintain good plant hygiene.",
-
-    "Tomato___Tomato_Yellow_Leaf_Curl_Virus":
-        "Remove severely affected plants according to local guidance and control insect vectors such as whiteflies.",
-
-    "Tomato___Tomato_mosaic_virus":
-        "Remove severely affected plants and maintain good hygiene. Clean tools and avoid spreading plant sap between plants."
-}
-
-
-# ============================================================
 # MODEL WARM-UP
 # ============================================================
+
 print("Starting model warm-up...")
 
-dummy_image = np.zeros(
-    (1, 224, 224, 3),
-    dtype=np.float32
-)
-
 try:
+    dummy_image = np.zeros(
+        (1, 224, 224, 3),
+        dtype=np.float32
+    )
+
     model(dummy_image, training=False)
+
     print("Model warm-up completed!")
+
 except Exception as e:
-    print("Warm-up error:", e)
+    print("Model warm-up warning:", e)
+
+
+# ============================================================
+# DISEASE SOLUTIONS
+# ============================================================
+
+solutions = {
+
+    "Apple___Apple_scab":
+        "Remove affected leaves and fallen plant material. "
+        "Improve air circulation and avoid wetting the leaves.",
+
+    "Apple___Black_rot":
+        "Remove infected leaves and fruit. "
+        "Keep the area clean and improve air circulation around the plant.",
+
+    "Apple___Cedar_apple_rust":
+        "Remove affected leaves and keep the area around the plant clean. "
+        "Follow local agricultural guidance for treatment.",
+
+    "Cherry_(including_sour)___Powdery_mildew":
+        "Remove severely affected leaves and improve sunlight and air circulation. "
+        "Avoid excessive moisture around the foliage.",
+
+    "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot":
+        "Remove heavily affected plant material and improve field air circulation. "
+        "Follow local crop-management recommendations.",
+
+    "Corn_(maize)___Common_rust_":
+        "Monitor the crop regularly and remove severely affected leaves. "
+        "Follow local agricultural guidance if the disease spreads.",
+
+    "Corn_(maize)___Northern_Leaf_Blight":
+        "Remove severely affected leaves and improve field hygiene. "
+        "Follow local agricultural recommendations for disease management.",
+
+    "Grape___Black_rot":
+        "Remove infected leaves and fruit and keep the area clean. "
+        "Improve air circulation around the vines.",
+
+    "Grape___Esca_(Black_Measles)":
+        "Remove severely affected plant material and maintain good vineyard hygiene. "
+        "Seek local agricultural guidance for management.",
+
+    "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)":
+        "Remove affected leaves and improve air circulation. "
+        "Avoid prolonged leaf wetness.",
+
+    "Orange___Haunglongbing_(Citrus_greening)":
+        "This condition requires professional agricultural assessment. "
+        "Follow local agricultural guidance for management.",
+
+    "Peach___Bacterial_spot":
+        "Remove severely affected leaves and maintain good plant hygiene. "
+        "Avoid overhead watering and improve air circulation.",
+
+    "Pepper,_bell___Bacterial_spot":
+        "Remove affected leaves and maintain good plant hygiene. "
+        "Avoid overhead watering and keep foliage as dry as practical.",
+
+    "Potato___Early_blight":
+        "Remove severely affected leaves and maintain field hygiene. "
+        "Avoid prolonged leaf wetness and follow local agricultural guidance.",
+
+    "Potato___Late_blight":
+        "Remove affected plant material and avoid overhead irrigation. "
+        "Because this disease can spread quickly, follow local agricultural guidance.",
+
+    "Squash___Powdery_mildew":
+        "Remove severely affected leaves and improve sunlight and air circulation. "
+        "Avoid excessive moisture on foliage.",
+
+    "Strawberry___Leaf_scorch":
+        "Remove severely affected leaves and maintain good plant hygiene. "
+        "Improve air circulation around the plants.",
+
+    "Tomato___Bacterial_spot":
+        "Remove affected leaves and maintain good plant hygiene. "
+        "Avoid overhead watering and improve air circulation.",
+
+    "Tomato___Early_blight":
+        "Remove affected leaves and keep the area clean. "
+        "Avoid prolonged leaf wetness and maintain good plant spacing.",
+
+    "Tomato___Late_blight":
+        "Remove affected plant material and avoid overhead watering. "
+        "Monitor the crop closely and follow local agricultural guidance.",
+
+    "Tomato___Leaf_Mold":
+        "Remove affected leaves and improve ventilation and air circulation. "
+        "Avoid excessive humidity around the foliage.",
+
+    "Tomato___Septoria_leaf_spot":
+        "Remove affected leaves and keep the soil and plant area clean. "
+        "Avoid overhead watering.",
+
+    "Tomato___Spider_mites Two-spotted_spider_mite":
+        "Inspect the undersides of leaves and remove heavily affected leaves. "
+        "Maintain plant health and seek local guidance if infestation increases.",
+
+    "Tomato___Target_Spot":
+        "Remove affected leaves and improve air circulation. "
+        "Avoid prolonged leaf wetness and maintain good plant hygiene.",
+
+    "Tomato___Tomato_Yellow_Leaf_Curl_Virus":
+        "Remove severely affected plants according to local guidance "
+        "and control insect vectors such as whiteflies.",
+
+    "Tomato___Tomato_mosaic_virus":
+        "Remove severely affected plants and maintain good hygiene. "
+        "Clean tools and avoid spreading plant sap between plants."
+}
 
 
 # ============================================================
 # HOME PAGE
 # ============================================================
+
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
 # ============================================================
-# PREDICTION
+# PREDICTION ROUTE
 # ============================================================
+
 @app.route("/predict", methods=["POST"])
 def predict():
 
     print("---------------------------------------")
     print("Starting prediction...")
+    print("---------------------------------------")
 
     if "leaf_image" not in request.files:
         print("ERROR: No image uploaded.")
@@ -245,22 +286,25 @@ def predict():
     try:
 
         # ----------------------------------------------------
-        # READ IMAGE
+        # OPEN IMAGE
         # ----------------------------------------------------
-        print("Reading image...")
+
+        print("Opening image...")
 
         image = Image.open(file).convert("RGB")
 
         print("Original image size:", image.size)
 
         # ----------------------------------------------------
-        # RESIZE
+        # RESIZE IMAGE
         # ----------------------------------------------------
+
         image = image.resize((224, 224))
 
         # ----------------------------------------------------
         # CONVERT TO NUMPY
         # ----------------------------------------------------
+
         image_array = np.array(
             image,
             dtype=np.float32
@@ -271,17 +315,214 @@ def predict():
             axis=0
         )
 
-        print("Image prepared for model.")
+        print("Image prepared for prediction.")
+
 
         # ----------------------------------------------------
-        # MODEL PREDICTION
+        # IMPORTANT:
+        # The model already contains:
+        #
+        # Rescaling(1.0 / 127.5, offset=-1)
+        #
+        # Therefore we DO NOT use preprocess_input().
         # ----------------------------------------------------
+
+
+        # ----------------------------------------------------
+        # RUN MODEL
+        # ----------------------------------------------------
+
         print("Running TensorFlow prediction...")
 
         start_time = time.time()
 
-        # IMPORTANT:
-        # The model already contains:
-        # Rescaling(1.0 / 127.5, offset=-1)
-        #
-        # Therefore we DO NOT use preprocess_input here.
+        predictions = model(
+            image_array,
+            training=False
+        ).numpy()
+
+        analysis_time = time.time() - start_time
+
+        print(
+            "Prediction completed in:",
+            round(analysis_time, 2),
+            "seconds"
+        )
+
+
+        # ----------------------------------------------------
+        # GET PREDICTED CLASS
+        # ----------------------------------------------------
+
+        predicted_index = int(
+            np.argmax(predictions[0])
+        )
+
+        predicted_class = class_names[
+            predicted_index
+        ]
+
+        confidence = (
+            float(
+                predictions[0][predicted_index]
+            ) * 100
+        )
+
+
+        # ----------------------------------------------------
+        # SPLIT CROP AND CONDITION
+        # ----------------------------------------------------
+
+        parts = predicted_class.split(
+            "___",
+            1
+        )
+
+        if len(parts) != 2:
+            raise ValueError(
+                "Invalid class name format: "
+                + predicted_class
+            )
+
+        crop = parts[0]
+        condition = parts[1]
+
+
+        # ----------------------------------------------------
+        # CLEAN CROP NAME
+        # ----------------------------------------------------
+
+        crop = crop.replace(
+            "_",
+            " "
+        )
+
+        crop = crop.replace(
+            "(maize)",
+            ""
+        )
+
+        crop = crop.replace(
+            "(including sour)",
+            ""
+        )
+
+        crop = crop.replace(
+            ", bell",
+            ""
+        )
+
+        crop = " ".join(
+            crop.split()
+        )
+
+
+        # ----------------------------------------------------
+        # HEALTHY / DISEASE DETECTION
+        # ----------------------------------------------------
+
+        if condition.lower() == "healthy":
+
+            status = "Healthy"
+
+            disease = "No disease detected"
+
+            solution = (
+                "Your plant appears healthy. "
+                "Continue regular watering, proper nutrition, "
+                "good sunlight, and regular monitoring."
+            )
+
+        else:
+
+            status = "Disease Detected"
+
+            disease = condition.replace(
+                "_",
+                " "
+            )
+
+            disease = " ".join(
+                disease.split()
+            )
+
+            solution = solutions.get(
+                predicted_class,
+                "Maintain good plant hygiene, remove severely "
+                "affected plant material, improve air circulation, "
+                "and consult local agricultural guidance if symptoms continue."
+            )
+
+
+        # ----------------------------------------------------
+        # PRINT RESULT
+        # ----------------------------------------------------
+
+        print("---------------------------------------")
+        print("Predicted class :", predicted_class)
+        print("Crop            :", crop)
+        print("Condition       :", disease)
+        print(
+            "Confidence      :",
+            round(confidence, 2),
+            "%"
+        )
+        print(
+            "Analysis time   :",
+            round(analysis_time, 2),
+            "seconds"
+        )
+        print("---------------------------------------")
+
+
+        # ----------------------------------------------------
+        # RETURN RESULT PAGE
+        # ----------------------------------------------------
+
+        return render_template(
+            "index.html",
+            prediction=predicted_class,
+            crop=crop,
+            status=status,
+            disease=disease,
+            confidence=round(
+                confidence,
+                2
+            ),
+            solution=solution
+        )
+
+
+    # ========================================================
+    # ERROR HANDLING
+    # ========================================================
+
+    except Exception as e:
+
+        print("---------------------------------------")
+        print("ERROR DURING PREDICTION:")
+        print(str(e))
+        print("---------------------------------------")
+
+        return render_template(
+            "index.html",
+            error=f"Error processing image: {e}"
+        )
+
+
+# ============================================================
+# LOCAL RUN
+# ============================================================
+
+if __name__ == "__main__":
+
+    app.run(
+        host="0.0.0.0",
+        port=int(
+            os.environ.get(
+                "PORT",
+                5000
+            )
+        ),
+        debug=False
+    )
