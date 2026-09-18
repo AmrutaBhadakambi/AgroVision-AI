@@ -4,11 +4,7 @@ import os
 # RENDER / CPU CONFIGURATION
 # ============================================================
 
-# Render free service does not provide CUDA GPU.
-# Force TensorFlow to use CPU only.
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
-# Limit CPU threads to reduce memory usage on Render.
 os.environ["OMP_NUM_THREADS"] = "2"
 os.environ["TF_NUM_INTRAOP_THREADS"] = "2"
 os.environ["TF_NUM_INTEROP_THREADS"] = "2"
@@ -16,20 +12,9 @@ os.environ["TF_NUM_INTEROP_THREADS"] = "2"
 import time
 
 from flask import Flask, render_template, request
-import tensorflow as tf
 from PIL import Image
 import numpy as np
-
-
-# ============================================================
-# TENSORFLOW CPU THREAD CONFIGURATION
-# ============================================================
-
-try:
-    tf.config.threading.set_intra_op_parallelism_threads(2)
-    tf.config.threading.set_inter_op_parallelism_threads(2)
-except Exception as e:
-    print("TensorFlow thread configuration warning:", e)
+from ai_edge_litert.interpreter import Interpreter
 
 
 # ============================================================
@@ -40,19 +25,27 @@ app = Flask(__name__)
 
 
 # ============================================================
-# MODEL
+# TFLITE MODEL
 # ============================================================
 
-MODEL_PATH = "model/agrovision_mobilenetv2.keras"
+MODEL_PATH = "model/agrovision_mobilenetv2.tflite"
 
-print("Loading model...")
+print("Loading TFLite model...")
 
-model = tf.keras.models.load_model(
-    MODEL_PATH,
-    compile=False
+interpreter = Interpreter(
+    model_path=MODEL_PATH
 )
 
-print("Model loaded successfully!")
+interpreter.allocate_tensors()
+
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+print("TFLite model loaded successfully!")
+
+print("Input shape:", input_details[0]["shape"])
+print("Input dtype:", input_details[0]["dtype"])
+print("Output shape:", output_details[0]["shape"])
 
 
 # ============================================================
@@ -107,10 +100,12 @@ print("Number of classes:", len(class_names))
 # CHECK MODEL OUTPUT
 # ============================================================
 
-if len(class_names) != model.output_shape[-1]:
+model_output_count = output_details[0]["shape"][-1]
+
+if len(class_names) != model_output_count:
     raise ValueError(
         f"Class mismatch! "
-        f"Model has {model.output_shape[-1]} outputs, "
+        f"Model has {model_output_count} outputs, "
         f"but class_names contains {len(class_names)} classes."
     )
 
@@ -122,12 +117,17 @@ if len(class_names) != model.output_shape[-1]:
 print("Starting model warm-up...")
 
 try:
-    dummy_image = np.zeros(
+    dummy_input = np.zeros(
         (1, 224, 224, 3),
         dtype=np.float32
     )
 
-    model(dummy_image, training=False)
+    interpreter.set_tensor(
+        input_details[0]["index"],
+        dummy_input
+    )
+
+    interpreter.invoke()
 
     print("Model warm-up completed!")
 
@@ -268,7 +268,6 @@ def predict():
     print("---------------------------------------")
 
     if "leaf_image" not in request.files:
-        print("ERROR: No image uploaded.")
         return render_template(
             "index.html",
             error="No image uploaded."
@@ -277,7 +276,6 @@ def predict():
     file = request.files["leaf_image"]
 
     if file.filename == "":
-        print("ERROR: Empty filename.")
         return render_template(
             "index.html",
             error="Please select an image."
@@ -317,29 +315,37 @@ def predict():
 
         print("Image prepared for prediction.")
 
-
         # ----------------------------------------------------
-        # IMPORTANT:
-        # The model already contains:
+        # IMPORTANT
+        #
+        # The original model contains:
         #
         # Rescaling(1.0 / 127.5, offset=-1)
         #
-        # Therefore we DO NOT use preprocess_input().
+        # That preprocessing is already inside the TFLite
+        # model.
+        #
+        # Therefore DO NOT use preprocess_input().
         # ----------------------------------------------------
 
-
         # ----------------------------------------------------
-        # RUN MODEL
+        # RUN TFLITE MODEL
         # ----------------------------------------------------
 
-        print("Running TensorFlow prediction...")
+        print("Running TFLite prediction...")
 
         start_time = time.time()
 
-        predictions = model(
-            image_array,
-            training=False
-        ).numpy()
+        interpreter.set_tensor(
+            input_details[0]["index"],
+            image_array
+        )
+
+        interpreter.invoke()
+
+        predictions = interpreter.get_tensor(
+            output_details[0]["index"]
+        )
 
         analysis_time = time.time() - start_time
 
@@ -348,7 +354,6 @@ def predict():
             round(analysis_time, 2),
             "seconds"
         )
-
 
         # ----------------------------------------------------
         # GET PREDICTED CLASS
@@ -368,7 +373,6 @@ def predict():
             ) * 100
         )
 
-
         # ----------------------------------------------------
         # SPLIT CROP AND CONDITION
         # ----------------------------------------------------
@@ -386,7 +390,6 @@ def predict():
 
         crop = parts[0]
         condition = parts[1]
-
 
         # ----------------------------------------------------
         # CLEAN CROP NAME
@@ -416,9 +419,8 @@ def predict():
             crop.split()
         )
 
-
         # ----------------------------------------------------
-        # HEALTHY / DISEASE DETECTION
+        # HEALTHY / DISEASE
         # ----------------------------------------------------
 
         if condition.lower() == "healthy":
@@ -453,7 +455,6 @@ def predict():
                 "and consult local agricultural guidance if symptoms continue."
             )
 
-
         # ----------------------------------------------------
         # PRINT RESULT
         # ----------------------------------------------------
@@ -474,9 +475,8 @@ def predict():
         )
         print("---------------------------------------")
 
-
         # ----------------------------------------------------
-        # RETURN RESULT PAGE
+        # RETURN RESULT
         # ----------------------------------------------------
 
         return render_template(
@@ -491,11 +491,6 @@ def predict():
             ),
             solution=solution
         )
-
-
-    # ========================================================
-    # ERROR HANDLING
-    # ========================================================
 
     except Exception as e:
 
